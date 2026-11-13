@@ -1,0 +1,31 @@
+{
+  "name": "weather-agent-sdk",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "tsx --env-file=.env src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/x404/weather-agent-sdk.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/x404/weather-agent-sdk/issues"
+  },
+  "homepage": "https://github.com/x404/weather-agent-sdk#readme",
+  "dependencies": {
+    "@openai/agents": "^0.21.0",
+    "openai": "^7.55.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
