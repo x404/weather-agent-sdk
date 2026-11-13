@@ -5,7 +5,6 @@ import {
     run,
     setTracingDisabled,
     tool,
-    handoff
 } from "@openai/agents";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -96,13 +95,15 @@ const agent = new Agent({
     modelSettings: { store: false },
     instructions: [
         "Відповідай українською мовою.",
-        "Передавай запитання про погоду фахівцю з погоди.",
+        "Для запитань про погоду викликай consult_weather_agent.",
+        "Передавай фахівцю повне запитання з назвою міста, зокрема коли її потрібно відновити з історії розмови.",
+        "Формулюй остаточну відповідь на основі результату фахівця.",
         "На звичайне привітання відповідай самостійно.",
     ].join(" "),
-    handoffs: [
-        handoff(weatherAgent, {
-            toolNameOverride: "transfer_to_weather_agent",
-            toolDescriptionOverride: "Передає запитання про погоду фахівцю.",
+    tools: [
+        weatherAgent.asTool({
+            toolName: "consult_weather_agent",
+            toolDescription: "Отримує відповідь фахівця на запитання про погоду.",
         }),
     ],
 });
@@ -121,8 +122,6 @@ for (const question of questions) {
     console.log("\nЗапитання:", question);
 
     const result = await run(agent, question, { session });
-
-    console.log('result:', result);
 
     console.log("[SDK] Останній агент:", result.lastAgent?.name);
 
