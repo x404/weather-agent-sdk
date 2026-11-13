@@ -5,6 +5,7 @@ import {
     run,
     setTracingDisabled,
     tool,
+    handoff
 } from "@openai/agents";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -75,8 +76,8 @@ const weatherTool = tool({
     },
 });
 
-const agent = new Agent({
-    name: "Помічник з погоди",
+const weatherAgent = new Agent({
+    name: "Фахівець із погоди",
     model,
     modelSettings: { store: false },
     instructions: [
@@ -89,6 +90,22 @@ const agent = new Agent({
     tools: [weatherTool],
 });
 
+const agent = new Agent({
+    name: "Диспетчер",
+    model,
+    modelSettings: { store: false },
+    instructions: [
+        "Відповідай українською мовою.",
+        "Передавай запитання про погоду фахівцю з погоди.",
+        "На звичайне привітання відповідай самостійно.",
+    ].join(" "),
+    handoffs: [
+        handoff(weatherAgent, {
+            toolNameOverride: "transfer_to_weather_agent",
+            toolDescriptionOverride: "Передає запитання про погоду фахівцю.",
+        }),
+    ],
+});
 
 const firstQuestion = process.argv[2]?.trim() || "Яка погода в Берліні?";
 const secondQuestion = process.argv[3]?.trim();
@@ -104,6 +121,10 @@ for (const question of questions) {
     console.log("\nЗапитання:", question);
 
     const result = await run(agent, question, { session });
+
+    console.log('result:', result);
+
+    console.log("[SDK] Останній агент:", result.lastAgent?.name);
 
     for (const item of result.newItems) {
         if (item.type === "tool_call_item") {
