@@ -8,6 +8,7 @@ import {
 } from "@openai/agents";
 import OpenAI from "openai";
 import { z } from "zod";
+import { createInterface } from "node:readline/promises";
 
 const apiKey = process.env.OPENROUTER_API_KEY?.trim();
 const modelId = process.env.OPENROUTER_MODEL?.trim();
@@ -92,18 +93,21 @@ const weatherAgent = new Agent({
 const agent = new Agent({
     name: "Диспетчер",
     model,
-    modelSettings: { store: false },
+    modelSettings: { store: false, parallelToolCalls: true },
     instructions: [
         "Відповідай українською мовою.",
         "Для запитань про погоду викликай consult_weather_agent.",
+        "Якщо запит стосується кількох міст, зроби окремий виклик consult_weather_agent для кожного міста. Запроси всі виклики в одному кроці.",
         "Передавай фахівцю повне запитання з назвою міста, зокрема коли її потрібно відновити з історії розмови.",
         "Формулюй остаточну відповідь на основі результату фахівця.",
         "На звичайне привітання відповідай самостійно.",
+        "Якщо користувач відхилив виклик фахівця, повідом про це й не повторюй виклик.",
     ].join(" "),
     tools: [
         weatherAgent.asTool({
             toolName: "consult_weather_agent",
             toolDescription: "Отримує відповідь фахівця на запитання про погоду.",
+            needsApproval: true,
         }),
     ],
 });
@@ -121,7 +125,38 @@ const session = new MemorySession();
 for (const question of questions) {
     console.log("\nЗапитання:", question);
 
-    const result = await run(agent, question, { session });
+    let result = await run(agent, question, { session });
+
+    while (result.interruptions.length > 0) {
+        const state = result.state;
+        const terminal = createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+
+        try {
+            for (const interruption of result.interruptions) {
+                console.log("[SDK] Запит на підтвердження:", interruption.name);
+                console.log("[SDK] Аргументи:", interruption.arguments);
+
+                const answer = await terminal.question(
+                    "Дозволити виклик фахівця з погоди? [так/ні]: ",
+                );
+
+                if (answer.trim().toLowerCase() === "так") {
+                    state.approve(interruption);
+                } else {
+                    state.reject(interruption, {
+                        message: "Користувач відхилив виклик фахівця з погоди.",
+                    });
+                }
+            }
+        } finally {
+            terminal.close();
+        }
+
+        result = await run(agent, state, { session });
+    }
 
     console.log("[SDK] Останній агент:", result.lastAgent?.name);
 
@@ -136,4 +171,12 @@ for (const question of questions) {
     }
 
     console.log("Відповідь:", result.finalOutput);
+    const usage = result.runContext.usage;
+
+    console.log("[SDK] Використання моделі:", {
+        "Запити": usage.requests,
+        "Вхідні токени": usage.inputTokens,
+        "Вихідні токени": usage.outputTokens,
+        "Усього токенів": usage.totalTokens,
+    });
 }
